@@ -30,7 +30,45 @@
                 <p class="tagline">AI Body Language & Face Reading Analyzer</p>
             </div>
         </div>
+        <button class="history-toggle-btn" id="historyToggleBtn" title="ประวัติการวิเคราะห์">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span>ประวัติ</span>
+            <span class="history-badge" id="historyBadge" hidden>0</span>
+        </button>
     </header>
+
+    <!-- History Panel (slide-out) -->
+    <div class="history-overlay" id="historyOverlay" hidden></div>
+    <aside class="history-panel" id="historyPanel">
+        <div class="history-panel-header">
+            <h3>ประวัติการวิเคราะห์</h3>
+            <div class="history-panel-actions">
+                <button class="history-clear-btn" id="historyClearBtn" title="ลบทั้งหมด">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                    </svg>
+                </button>
+                <button class="history-close-btn" id="historyCloseBtn" title="ปิด">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="history-list" id="historyList">
+            <div class="history-empty" id="historyEmpty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <p>ยังไม่มีประวัติการวิเคราะห์</p>
+            </div>
+        </div>
+    </aside>
 
     <main>
         <!-- Upload Section -->

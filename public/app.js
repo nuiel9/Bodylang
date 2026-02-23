@@ -22,7 +22,186 @@ document.addEventListener("DOMContentLoaded", () => {
   const recommendCard = document.getElementById("recommendCard");
   const recommendContent = document.getElementById("recommendContent");
 
+  const historyToggleBtn = document.getElementById("historyToggleBtn");
+  const historyPanel = document.getElementById("historyPanel");
+  const historyOverlay = document.getElementById("historyOverlay");
+  const historyCloseBtn = document.getElementById("historyCloseBtn");
+  const historyClearBtn = document.getElementById("historyClearBtn");
+  const historyList = document.getElementById("historyList");
+  const historyEmpty = document.getElementById("historyEmpty");
+  const historyBadge = document.getElementById("historyBadge");
+
   let selectedFile = null;
+  const HISTORY_KEY = "bodylang_history";
+  const MAX_HISTORY = 20;
+
+  // --- History Functions ---
+  function getHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistory(entries) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+    } catch (e) {
+      // localStorage full — remove oldest entry and retry
+      if (entries.length > 1) {
+        entries.pop();
+        saveHistory(entries);
+      }
+    }
+  }
+
+  function createThumbnail(imgSrc, maxSize) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
+      };
+      img.onerror = () => resolve(null);
+      img.src = imgSrc;
+    });
+  }
+
+  async function addHistoryEntry(data, imageSrc) {
+    const entries = getHistory();
+    const thumbnail = await createThumbnail(imageSrc, 120);
+    const resultImage = await createThumbnail(imageSrc, 480);
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      timestamp: new Date().toISOString(),
+      name: document.getElementById("nameInput").value.trim() || null,
+      birthday: document.getElementById("birthdayInput").value || null,
+      personalityType: data.personalityPrediction?.overallType || "",
+      element: data.personalityPrediction?.element || "",
+      thumbnail,
+      resultImage,
+      data,
+    };
+    entries.unshift(entry);
+    if (entries.length > MAX_HISTORY) entries.length = MAX_HISTORY;
+    saveHistory(entries);
+    updateHistoryBadge();
+    return entry;
+  }
+
+  function deleteHistoryEntry(id) {
+    const entries = getHistory().filter((e) => e.id !== id);
+    saveHistory(entries);
+    updateHistoryBadge();
+    renderHistoryList();
+  }
+
+  function clearHistory() {
+    localStorage.removeItem(HISTORY_KEY);
+    updateHistoryBadge();
+    renderHistoryList();
+  }
+
+  function updateHistoryBadge() {
+    const count = getHistory().length;
+    historyBadge.textContent = count;
+    historyBadge.hidden = count === 0;
+  }
+
+  function formatDate(isoStr) {
+    const d = new Date(isoStr);
+    const day = d.getDate().toString().padStart(2, "0");
+    const month = (d.getMonth() + 1).toString().padStart(2, "0");
+    const year = d.getFullYear() + 543; // Buddhist Era
+    const time = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    return `${day}/${month}/${year} ${time}`;
+  }
+
+  function renderHistoryList() {
+    const entries = getHistory();
+    // Clear existing items but keep the empty state element
+    const items = historyList.querySelectorAll(".history-item");
+    items.forEach((item) => item.remove());
+
+    historyEmpty.hidden = entries.length > 0;
+
+    entries.forEach((entry) => {
+      const item = document.createElement("div");
+      item.className = "history-item";
+      item.innerHTML = `
+        <img class="history-thumb" src="${entry.thumbnail || ""}" alt="" />
+        <div class="history-item-info">
+          <div class="history-item-type">${entry.personalityType || "ไม่ระบุ"}</div>
+          <div class="history-item-meta">
+            ${entry.element ? '<span class="history-element">' + entry.element + "</span>" : ""}
+            ${entry.name ? '<span class="history-name">' + entry.name + "</span>" : ""}
+          </div>
+          <div class="history-item-date">${formatDate(entry.timestamp)}</div>
+        </div>
+        <button class="history-delete-btn" data-id="${entry.id}" title="ลบ">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      `;
+      // Click on item to view
+      item.addEventListener("click", (e) => {
+        if (e.target.closest(".history-delete-btn")) return;
+        viewHistoryEntry(entry);
+      });
+      // Delete button
+      item.querySelector(".history-delete-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteHistoryEntry(entry.id);
+      });
+      historyList.appendChild(item);
+    });
+  }
+
+  function viewHistoryEntry(entry) {
+    closeHistoryPanel();
+    // Set the result image from stored data
+    document.getElementById("resultImage").src = entry.resultImage || entry.thumbnail || "";
+    renderResults(entry.data, true);
+    showSection(resultsSection);
+  }
+
+  function openHistoryPanel() {
+    renderHistoryList();
+    historyPanel.classList.add("open");
+    historyOverlay.hidden = false;
+  }
+
+  function closeHistoryPanel() {
+    historyPanel.classList.remove("open");
+    historyOverlay.hidden = true;
+  }
+
+  // History event listeners
+  historyToggleBtn.addEventListener("click", () => {
+    if (historyPanel.classList.contains("open")) {
+      closeHistoryPanel();
+    } else {
+      openHistoryPanel();
+    }
+  });
+  historyCloseBtn.addEventListener("click", closeHistoryPanel);
+  historyOverlay.addEventListener("click", closeHistoryPanel);
+  historyClearBtn.addEventListener("click", () => {
+    if (getHistory().length === 0) return;
+    if (confirm("ลบประวัติการวิเคราะห์ทั้งหมด?")) {
+      clearHistory();
+    }
+  });
+
+  // Initialize badge on load
+  updateHistoryBadge();
 
   // --- Upload Area Events ---
   uploadArea.addEventListener("click", (e) => {
@@ -181,8 +360,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
 
       if (result.success) {
-        renderResults(result.data);
+        renderResults(result.data, false);
         showSection(resultsSection);
+        // Save to history
+        addHistoryEntry(result.data, previewImage.src);
       } else {
         throw new Error(result.error || "ไม่สามารถวิเคราะห์ได้");
       }
@@ -293,9 +474,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Render Results ---
-  function renderResults(data) {
-    // Show uploaded image
-    document.getElementById("resultImage").src = previewImage.src;
+  function renderResults(data, isFromHistory) {
+    // Show uploaded image (for fresh analysis; history sets it before calling)
+    if (!isFromHistory) {
+      document.getElementById("resultImage").src = previewImage.src;
+    }
 
     // Personality type & summary
     document.getElementById("personalityType").textContent =
@@ -615,5 +798,16 @@ document.addEventListener("DOMContentLoaded", () => {
     chatMessages.innerHTML = "";
     recommendCard.hidden = true;
     recommendBtn.disabled = false;
+
+    // Disable chat/recommendations when viewing from history (no server session)
+    const chatCard = document.querySelector(".chat-card");
+    if (isFromHistory) {
+      recommendBtn.disabled = true;
+      recommendBtn.querySelector(".btn-text").textContent = "คำแนะนำไม่พร้อมใช้งาน (ดูจากประวัติ)";
+      if (chatCard) chatCard.hidden = true;
+    } else {
+      recommendBtn.querySelector(".btn-text").textContent = "ดูคำแนะนำเพิ่มเติม (โชคลาภ, สีมงคล, ความรัก...)";
+      if (chatCard) chatCard.hidden = false;
+    }
   }
 });
