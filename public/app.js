@@ -32,6 +32,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const historyBadge = document.getElementById("historyBadge");
 
   const exportPdfBtn = document.getElementById("exportPdfBtn");
+  const scrollTopBtn = document.getElementById("scrollTopBtn");
+  const toastContainer = document.getElementById("toastContainer");
+  const headerEl = document.querySelector("header");
 
   let selectedFile = null;
   let analysisMode = "face"; // "face" or "palm"
@@ -204,11 +207,52 @@ document.addEventListener("DOMContentLoaded", () => {
     if (getHistory().length === 0) return;
     if (confirm("ลบประวัติการวิเคราะห์ทั้งหมด?")) {
       clearHistory();
+      showToast("ลบประวัติทั้งหมดเรียบร้อย", "success");
     }
   });
 
   // Initialize badge on load
   updateHistoryBadge();
+
+  // --- Sticky Header & Scroll-to-Top ---
+  let lastScrollY = 0;
+  window.addEventListener("scroll", () => {
+    const sy = window.scrollY;
+    if (sy > 60) {
+      headerEl.classList.add("scrolled");
+    } else {
+      headerEl.classList.remove("scrolled");
+    }
+    if (sy > 400) {
+      scrollTopBtn.classList.add("visible");
+    } else {
+      scrollTopBtn.classList.remove("visible");
+    }
+    lastScrollY = sy;
+  }, { passive: true });
+
+  scrollTopBtn.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  // --- Toast Notification System ---
+  function showToast(message, type) {
+    type = type || "info";
+    const iconMap = {
+      error: "&#9888;",
+      success: "&#10004;",
+      info: "&#8505;",
+      warning: "&#9888;",
+    };
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span class="toast-icon">${iconMap[type] || iconMap.info}</span><span>${message}</span>`;
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add("removing");
+      toast.addEventListener("animationend", () => toast.remove());
+    }, 3500);
+  }
 
   // --- Mode Selector ---
   const modeBtns = document.querySelectorAll(".mode-btn");
@@ -289,11 +333,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleFile(file) {
     const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (!allowed.includes(file.type)) {
-      alert("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, GIF, WebP) เท่านั้น");
+      showToast("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, GIF, WebP) เท่านั้น", "error");
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert("ไฟล์ใหญ่เกินไป กรุณาเลือกไฟล์ขนาดไม่เกิน 10MB");
+      showToast("ไฟล์ใหญ่เกินไป กรุณาเลือกไฟล์ขนาดไม่เกิน 10MB", "error");
       return;
     }
 
@@ -505,11 +549,11 @@ document.addEventListener("DOMContentLoaded", () => {
         recommendCard.hidden = false;
         recommendCard.scrollIntoView({ behavior: "smooth", block: "center" });
       } else {
-        alert(data.error || "เกิดข้อผิดพลาด");
+        showToast(data.error || "เกิดข้อผิดพลาด", "error");
         recommendBtn.disabled = false;
       }
     } catch {
-      alert("เกิดข้อผิดพลาด กรุณาลองใหม่");
+      showToast("เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
       recommendBtn.disabled = false;
     }
 
@@ -1427,9 +1471,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const modeLabel = lastAnalysisMode === "palm" ? "Palm" : "FaceReading";
       const ts = now.toISOString().slice(0, 10);
       doc.save(`BodyLang_${modeLabel}_${ts}.pdf`);
+      showToast("ดาวน์โหลด PDF สำเร็จ!", "success");
     } catch (err) {
       console.error("PDF generation error:", err);
-      alert("PDF generation failed: " + err.message);
+      showToast("PDF generation failed: " + err.message, "error");
     }
 
     exportPdfBtn.disabled = false;
