@@ -37,7 +37,7 @@ app.use(express.json({ limit: "15mb" }));
 // Initialize Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-pro-preview",
   generationConfig: {
     maxOutputTokens: 16384,
     temperature: 0.7,
@@ -518,6 +518,67 @@ async function compressImage(buffer, mimetype) {
   return { buffer, mediaType: mimetype };
 }
 
+// Helper: Chaldean letter-to-number mapping (no 9)
+const CHALDEAN_MAP = {
+  A:1, B:2, C:3, D:4, E:5, F:8, G:3, H:5, I:1, J:1, K:2, L:3, M:4,
+  N:5, O:7, P:8, Q:1, R:2, S:2, T:4, U:6, V:6, W:6, X:5, Y:6, Z:7
+};
+
+// Helper: Thai consonant-to-number mapping
+const THAI_CHAR_MAP = {};
+const thaiGroups = {
+  1: "กขคฆ", 2: "จฉชซฌ", 3: "ญดตถฐฑฒณ", 4: "ทธน",
+  5: "บปผฝพฟภ", 6: "มยรลว", 7: "ศษสหฬ", 8: "อฮ"
+};
+for (const [num, chars] of Object.entries(thaiGroups)) {
+  for (const ch of chars) THAI_CHAR_MAP[ch] = parseInt(num);
+}
+// Thai vowels = 9
+const thaiVowels = "ะาิีึืุูเแโใไำๅฤฦ็่้๊๋ั์ํๆฯ";
+for (const ch of thaiVowels) THAI_CHAR_MAP[ch] = 9;
+
+function reduceToSingle(n) {
+  while (n > 9 && n !== 11 && n !== 22 && n !== 33) {
+    n = String(n).split("").reduce((sum, d) => sum + parseInt(d), 0);
+  }
+  return n;
+}
+
+function calcChaldeanName(name) {
+  const upper = name.toUpperCase();
+  let total = 0;
+  const breakdown = [];
+  for (const ch of upper) {
+    if (CHALDEAN_MAP[ch] !== undefined) {
+      breakdown.push(`${ch}=${CHALDEAN_MAP[ch]}`);
+      total += CHALDEAN_MAP[ch];
+    }
+  }
+  if (breakdown.length === 0) return null;
+  return { compound: total, single: reduceToSingle(total), breakdown: breakdown.join(", ") };
+}
+
+function calcThaiName(name) {
+  let total = 0;
+  const breakdown = [];
+  for (const ch of name) {
+    if (THAI_CHAR_MAP[ch] !== undefined) {
+      breakdown.push(`${ch}=${THAI_CHAR_MAP[ch]}`);
+      total += THAI_CHAR_MAP[ch];
+    }
+  }
+  if (breakdown.length === 0) return null;
+  return { compound: total, single: reduceToSingle(total), breakdown: breakdown.join(", ") };
+}
+
+function calcLifePath(dateStr) {
+  // dateStr format: YYYY-MM-DD
+  const digits = dateStr.replace(/-/g, "");
+  let total = 0;
+  for (const d of digits) total += parseInt(d);
+  return { compound: total, single: reduceToSingle(total) };
+}
+
 // API endpoint to analyze body language
 app.post("/api/analyze", upload.single("image"), async (req, res) => {
   if (!req.file) {
@@ -531,20 +592,39 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
     const birthday = req.body?.birthday || "";
     const name = req.body?.name || "";
     let userPrompt = "วิเคราะห์โหงวเฮ้งและภาษากายของบุคคลในรูปภาพนี้อย่างละเอียดตามหลักศาสตร์จีนโบราณ ทำนายนิสัย บุคลิกภาพ โชคชะตา พร้อมคำแนะนำ";
+
+    // Pre-calculate Life Path Number deterministically
     if (birthday) {
-      userPrompt += `\n\nวันเกิดของบุคคลนี้คือ: ${birthday} — กรุณาคำนวณเลขประจำตัว (Life Path Number) และวิเคราะห์เลขศาสตร์เชิงลึก เปรียบเทียบธาตุจากเลขศาสตร์กับธาตุจากโหงวเฮ้ง`;
+      const lp = calcLifePath(birthday);
+      userPrompt += `\n\nวันเกิด: ${birthday}
+**ผลคำนวณเลขประจำตัว (Life Path Number) — ค่านี้ถูกต้องแล้ว ห้ามคำนวณใหม่:**
+- เลขรวม: ${lp.compound} → เลขประจำตัว: ${lp.single}${lp.single === 11 || lp.single === 22 || lp.single === 33 ? " (Master Number)" : ""}
+- ใส่ lifePathNumber = "${lp.single}${lp.single === 11 || lp.single === 22 || lp.single === 33 ? " (Master Number)" : ""}"
+กรุณาวิเคราะห์ความหมายของเลข ${lp.single} เชิงลึกทั้ง 2 ระบบ (Cheiro + ไทย) เปรียบเทียบธาตุจากเลขศาสตร์กับธาตุจากโหงวเฮ้ง`;
     } else {
       userPrompt += "\n\nไม่มีข้อมูลวันเกิด — วิเคราะห์เลขมงคลจากธาตุโหงวเฮ้งเพียงอย่างเดียว ใส่ lifePathNumber เป็น null";
     }
+
+    // Pre-calculate Name Number deterministically
     if (name) {
       const isThai = /[\u0E00-\u0E7F]/.test(name);
-      userPrompt += `\n\n**สำคัญมาก — ชื่อของบุคคลนี้คือ: "${name}"**
-กรุณาคำนวณเลขชื่อ (Name Number) ตามระบบ Chaldean ของ Cheiro:
-- แปลงทีละตัวอักษร เช่น T=4, E=5, E=5, R=2, U=6, C=3, H=5 → รวม = Compound Number
-- ลด Compound Number ให้เหลือหลักเดียว = Name Number (Single Number)
-- บอกความหมาย Compound Number จาก Cheiro's Book of Numbers
-- วิเคราะห์ว่า Name Number เป็นคู่มิตรหรือขัดแย้งกับ Birth Number
-- ใส่ผลลัพธ์ใน numerology.nameNumber object (ห้ามเป็น null เมื่อมีชื่อ)${isThai ? '\n- คำนวณเลขชื่อตามระบบเลขศาสตร์ไทยด้วย' : ''}`;
+      const chaldean = calcChaldeanName(name);
+      const thai = isThai ? calcThaiName(name) : null;
+
+      userPrompt += `\n\n**ชื่อ: "${name}" — ผลคำนวณเลขชื่อ (ค่านี้ถูกต้องแล้ว ห้ามคำนวณใหม่):**`;
+      if (chaldean) {
+        userPrompt += `\nระบบ Chaldean: ${chaldean.breakdown} → รวม = ${chaldean.compound} (Compound Number) → ลดเหลือ = ${chaldean.single} (Name Number)`;
+        userPrompt += `\nใส่ compoundNumber = "${chaldean.compound}", singleNumber = "${chaldean.single}"`;
+      }
+      if (thai) {
+        userPrompt += `\nระบบไทย: ${thai.breakdown} → รวม = ${thai.compound} → ลดเหลือ = ${thai.single}`;
+        userPrompt += `\nใส่ thaiCompound = "${thai.compound}", thaiNameNumber = "${thai.single}"`;
+      } else if (isThai) {
+        userPrompt += `\n(ไม่พบพยัญชนะไทยที่แปลงได้)`;
+      }
+      userPrompt += `\nกรุณาบอกความหมาย Compound Number ${chaldean?.compound || ""} จาก Cheiro's Book of Numbers`;
+      userPrompt += `\nวิเคราะห์ว่า Name Number เป็นคู่มิตรหรือขัดแย้งกับ Birth Number`;
+      userPrompt += `\nใส่ผลลัพธ์ใน numerology.nameNumber object (ห้ามเป็น null เมื่อมีชื่อ)`;
     } else {
       userPrompt += "\n\nไม่มีข้อมูลชื่อ — ใส่ nameNumber เป็น null";
     }
