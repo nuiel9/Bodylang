@@ -1,5 +1,7 @@
 require("dotenv").config();
 const express = require("express");
+const session = require("express-session");
+const crypto = require("crypto");
 const multer = require("multer");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const sharp = require("sharp");
@@ -33,6 +35,21 @@ const upload = multer({
 // Serve static files
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json({ limit: "15mb" }));
+
+// Session middleware for multi-user support
+const SESSION_TTL = 30 * 60 * 1000; // 30 minutes
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex"),
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      maxAge: SESSION_TTL,
+      httpOnly: true,
+      sameSite: "lax",
+    },
+  })
+);
 
 // Initialize Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -469,8 +486,7 @@ Master Numbers: 11, 22, 33 ไม่ต้องลดลง (เป็นเล
 ถ้ามีชื่อ ต้องคำนวณเลขชื่อ (Name Number) ตามระบบ Chaldean ให้ถูกต้องทุกตัวอักษร พร้อม Compound Number และความหมาย
 ถ้าไม่มีชื่อ ให้ nameNumber เป็น null`;
 
-// Store last analysis for chat context
-let lastAnalysisContext = {};
+// Analysis context is now stored per-session (req.session.analysisContext)
 
 // Helper: extract JSON from text
 function extractJSON(text) {
@@ -647,8 +663,8 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
 
     console.log("Analysis keys:", Object.keys(result));
 
-    // Store context for follow-up chat
-    lastAnalysisContext = {
+    // Store context in session for follow-up chat (per-user)
+    req.session.analysisContext = {
       result,
       imageBase64: base64Image,
       mediaType,
@@ -671,19 +687,20 @@ app.post("/api/chat", async (req, res) => {
   if (!question) {
     return res.status(400).json({ error: "กรุณาพิมพ์คำถาม" });
   }
-  if (!lastAnalysisContext.result) {
+  const ctx = req.session.analysisContext;
+  if (!ctx?.result) {
     return res.status(400).json({ error: "กรุณาวิเคราะห์รูปภาพก่อน" });
   }
 
   try {
-    const contextSummary = JSON.stringify(lastAnalysisContext.result, null, 2);
+    const contextSummary = JSON.stringify(ctx.result, null, 2);
 
     const response = await model.generateContent([
       { text: `คุณเป็นซินแสผู้เชี่ยวชาญด้านโหงวเฮ้งและภาษากาย ผลวิเคราะห์ก่อนหน้า:\n${contextSummary}\n\nตอบคำถามเป็นภาษาไทย กระชับ ชัดเจน อ้างอิงหลักโหงวเฮ้ง ห้ามใช้ Markdown (**, *, #) ในคำตอบ ให้ตอบเป็นข้อความธรรมดา` },
       {
         inlineData: {
-          mimeType: lastAnalysisContext.mediaType,
-          data: lastAnalysisContext.imageBase64,
+          mimeType: ctx.mediaType,
+          data: ctx.imageBase64,
         },
       },
       { text: question },
@@ -702,12 +719,13 @@ app.post("/api/chat", async (req, res) => {
 
 // Recommendation endpoint
 app.post("/api/recommend", async (req, res) => {
-  if (!lastAnalysisContext.result) {
+  const ctx = req.session.analysisContext;
+  if (!ctx?.result) {
     return res.status(400).json({ error: "กรุณาวิเคราะห์รูปภาพก่อน" });
   }
 
   try {
-    const contextSummary = JSON.stringify(lastAnalysisContext.result, null, 2);
+    const contextSummary = JSON.stringify(ctx.result, null, 2);
 
     const response = await model.generateContent([
       { text: `จากผลวิเคราะห์โหงวเฮ้งและภาษากายนี้:\n${contextSummary}\n\nให้คำแนะนำเชิงลึกเพิ่มเติมตามหลักศาสตร์จีนโบราณ ในรูปแบบ JSON:
