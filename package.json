@@ -1,11 +1,20 @@
 {
   "name": "bodylang-personality-predictor",
   "version": "1.0.0",
-  "description": "Personality prediction from body language through image analysis using Claude AI",
+  "description": "AI-powered body language, face reading, and palm reading analyzer using Gemini AI",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "pm2:start": "pm2 start ecosystem.config.js --env production",
+    "pm2:stop": "pm2 stop bodylang",
+    "pm2:restart": "pm2 restart bodylang",
+    "pm2:logs": "pm2 logs bodylang",
+    "vercel:dev": "vercel dev",
+    "vercel:deploy": "vercel --prod"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

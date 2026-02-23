@@ -10,11 +10,19 @@ const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProduction = process.env.NODE_ENV === "production";
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+// Trust proxy (required for Vercel, Hostinger reverse proxy, etc.)
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
+
+// Ensure uploads directory exists (not needed on Vercel serverless)
+if (!process.env.VERCEL) {
+  const uploadsDir = path.join(__dirname, "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+  }
 }
 
 // Configure multer for image uploads
@@ -47,6 +55,7 @@ app.use(
       maxAge: SESSION_TTL,
       httpOnly: true,
       sameSite: "lax",
+      secure: isProduction,
     },
   })
 );
@@ -937,6 +946,11 @@ app.post("/api/recommend", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Body Language Analyzer running at http://localhost:${PORT}`);
-});
+// Start server (skipped on Vercel — uses module.exports instead)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Body Language Analyzer running at http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
