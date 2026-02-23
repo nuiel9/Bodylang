@@ -1082,392 +1082,94 @@ document.addEventListener("DOMContentLoaded", () => {
     exportPdfBtn.querySelector(".btn-text").textContent = "กำลังสร้าง PDF...";
 
     try {
+      const resultSection = document.getElementById("resultsSection");
+      if (!resultSection) throw new Error("Result section not found");
+
+      // Apply print-friendly light theme before capturing
+      resultSection.classList.add("pdf-print-mode");
+      // Wait for styles to apply
+      await new Promise(r => setTimeout(r, 100));
+
+      // Use html2canvas to capture the entire results section as a canvas image.
+      // This preserves Thai text, styling, and correct image aspect ratios.
+      const canvas = await html2canvas(resultSection, {
+        scale: 3,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        scrollY: -window.scrollY,
+      });
+
+      // Restore dark theme immediately after capture
+      resultSection.classList.remove("pdf-print-mode");
+
+      const canvasImgData = canvas.toDataURL("image/jpeg", 0.92);
+
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
-      const margin = 16;
+      const margin = 10;
       const contentW = pageW - margin * 2;
-      let y = margin;
+      const footerH = 10;
+      const usableH = pageH - margin - footerH;
 
-      // Register Thai font from embedded NotoSansThai
-      // jsPDF doesn't have Thai built-in, so we use a Unicode-safe approach
-      // We'll use the default font with careful encoding
-      doc.setFont("Helvetica");
+      // Calculate image dimensions to fit page width while preserving aspect ratio
+      const imgRatio = canvas.height / canvas.width;
+      const imgW = contentW;
+      const totalImgH = imgW * imgRatio;
 
-      // --- Helper Functions ---
-      function checkPage(needed) {
-        if (y + needed > pageH - margin) {
-          doc.addPage();
-          y = margin;
-          return true;
-        }
-        return false;
+      // Split the captured image across multiple pages if needed
+      let srcY = 0;
+      const srcWidth = canvas.width;
+      const srcTotalHeight = canvas.height;
+      let pageNum = 0;
+
+      while (srcY < srcTotalHeight) {
+        if (pageNum > 0) doc.addPage();
+        pageNum++;
+
+        // How much of the source image height fits on one page
+        const sliceHmm = usableH - (pageNum === 1 ? 0 : 0);
+        const sliceHpx = (sliceHmm / totalImgH) * srcTotalHeight;
+        const actualSliceHpx = Math.min(sliceHpx, srcTotalHeight - srcY);
+        const actualSliceHmm = (actualSliceHpx / srcTotalHeight) * totalImgH;
+
+        // Create a temporary canvas for this page slice
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = srcWidth;
+        sliceCanvas.height = Math.ceil(actualSliceHpx);
+        const sliceCtx = sliceCanvas.getContext("2d");
+        sliceCtx.drawImage(
+          canvas,
+          0, Math.floor(srcY), srcWidth, Math.ceil(actualSliceHpx),
+          0, 0, srcWidth, Math.ceil(actualSliceHpx)
+        );
+
+        const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.92);
+        doc.addImage(sliceData, "JPEG", margin, margin, imgW, actualSliceHmm);
+
+        // Draw footer
+        doc.setFillColor(245, 245, 250);
+        doc.rect(0, pageH - footerH, pageW, footerH, "F");
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 120);
+        doc.text("BodyLang - AI Body Language & Face Reading Analyzer | Powered by Gemini AI", margin, pageH - 3.5);
+
+        srcY += actualSliceHpx;
       }
 
-      function drawSectionHeader(title) {
-        checkPage(14);
-        doc.setFillColor(124, 92, 252);
-        doc.roundedRect(margin, y, contentW, 10, 2, 2, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(13);
-        doc.text(title, margin + 4, y + 7);
-        doc.setTextColor(40, 40, 60);
-        y += 14;
-      }
-
-      function drawSubHeader(title) {
-        checkPage(10);
-        doc.setFontSize(11);
-        doc.setTextColor(124, 92, 252);
-        doc.text(title, margin, y + 4);
-        doc.setDrawColor(124, 92, 252);
-        doc.setLineWidth(0.3);
-        doc.line(margin, y + 6, margin + contentW, y + 6);
-        doc.setTextColor(40, 40, 60);
-        y += 10;
-      }
-
-      function drawKeyValue(key, value) {
-        if (!value) return;
-        checkPage(8);
-        doc.setFontSize(9);
-        doc.setTextColor(100, 100, 140);
-        doc.text(key + ":", margin + 2, y + 4);
-        doc.setTextColor(40, 40, 60);
-        const keyW = doc.getTextWidth(key + ": ");
-        const lines = doc.splitTextToSize(String(value), contentW - keyW - 4);
-        doc.text(lines, margin + 2 + keyW, y + 4);
-        y += lines.length * 5 + 2;
-      }
-
-      function drawParagraph(text, fontSize) {
-        if (!text) return;
-        doc.setFontSize(fontSize || 9);
-        doc.setTextColor(60, 60, 80);
-        const lines = doc.splitTextToSize(String(text), contentW - 4);
-        checkPage(lines.length * 5 + 4);
-        doc.text(lines, margin + 2, y + 4);
-        y += lines.length * 5 + 4;
-      }
-
-      function drawBullet(text) {
-        if (!text) return;
-        doc.setFontSize(9);
-        doc.setTextColor(60, 60, 80);
-        const lines = doc.splitTextToSize(String(text), contentW - 10);
-        checkPage(lines.length * 5 + 2);
-        doc.setFillColor(124, 92, 252);
-        doc.circle(margin + 4, y + 3, 1.2, "F");
-        doc.text(lines, margin + 8, y + 4);
-        y += lines.length * 5 + 2;
-      }
-
-      function drawAnalysisItem(label, observation, meaning, rating) {
-        checkPage(18);
-        doc.setFontSize(9);
-        doc.setTextColor(124, 92, 252);
-        let labelText = label;
-        if (rating) {
-          const ratingMap = { good: " [Excellent]", neutral: " [Average]", bad: " [Caution]" };
-          labelText += ratingMap[rating] || "";
-        }
-        doc.text(labelText, margin + 2, y + 4);
-        y += 5;
-        if (observation) {
-          doc.setTextColor(40, 40, 60);
-          const obsLines = doc.splitTextToSize(String(observation), contentW - 6);
-          doc.text(obsLines, margin + 4, y + 4);
-          y += obsLines.length * 5;
-        }
-        if (meaning) {
-          doc.setTextColor(100, 100, 140);
-          const meanLines = doc.splitTextToSize(String(meaning), contentW - 6);
-          doc.text(meanLines, margin + 4, y + 4);
-          y += meanLines.length * 5;
-        }
-        y += 3;
-      }
-
-      // --- Title / Header ---
-      doc.setFillColor(10, 10, 26);
-      doc.rect(0, 0, pageW, 35, "F");
-      doc.setTextColor(155, 127, 255);
-      doc.setFontSize(22);
-      doc.text("BodyLang", margin, 15);
-      doc.setFontSize(10);
-      doc.setTextColor(180, 180, 210);
-      const subtitle = lastAnalysisMode === "palm"
-        ? "Palm Reading Analysis Report"
-        : "Body Language & Face Reading Analysis Report";
-      doc.text(subtitle, margin, 22);
-      // Date
-      const now = new Date();
-      const dateStr = now.toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
-      doc.setFontSize(8);
-      doc.setTextColor(140, 140, 180);
-      doc.text(dateStr, margin, 29);
-      y = 42;
-
-      // --- Image ---
-      const resultImgSrc = document.getElementById("resultImage").src;
-      if (resultImgSrc && resultImgSrc.startsWith("data:")) {
-        try {
-          const imgProps = doc.getImageProperties(resultImgSrc);
-          const imgMaxW = Math.min(contentW * 0.5, 80);
-          const ratio = imgProps.height / imgProps.width;
-          const imgW = imgMaxW;
-          const imgH = imgW * ratio;
-          const imgX = (pageW - imgW) / 2;
-          checkPage(imgH + 8);
-          doc.addImage(resultImgSrc, "JPEG", imgX, y, imgW, Math.min(imgH, 80));
-          y += Math.min(imgH, 80) + 8;
-        } catch (e) {
-          // Skip image if it fails
-        }
-      }
-
-      // --- Personality Overview ---
-      const data = lastAnalysisData;
-      drawSectionHeader("Personality Overview");
-
-      if (data.personalityPrediction?.overallType) {
-        doc.setFontSize(14);
-        doc.setTextColor(124, 92, 252);
-        doc.text(data.personalityPrediction.overallType, margin + 2, y + 5);
-        y += 10;
-      }
-
-      if (data.personalityPrediction?.element) {
-        drawKeyValue("Element", data.personalityPrediction.element);
-      }
-
-      if (data.personalityPrediction?.traits?.length) {
-        drawKeyValue("Traits", data.personalityPrediction.traits.join(", "));
-      }
-
-      if (data.overallSummary) {
-        drawParagraph(data.overallSummary);
-      }
-
-      // --- Body Language (face mode) ---
-      if (lastAnalysisMode === "face") {
-        const analysis = data.bodyLanguageAnalysis || {};
-        if (Object.keys(analysis).length > 0) {
-          drawSectionHeader("Body Language Analysis");
-          if (analysis.overallType) {
-            drawKeyValue("Type", analysis.overallType);
-          }
-          const blMap = {
-            posture: "Posture",
-            facialExpression: "Facial Expression",
-            armsAndHands: "Arms & Hands",
-            eyeDirection: "Eye Direction",
-          };
-          for (const [key, label] of Object.entries(blMap)) {
-            if (analysis[key]) {
-              drawAnalysisItem(label, analysis[key].observation, analysis[key].meaning);
-            }
-          }
-        }
-
-        // --- Face Reading ---
-        const faceReading = data.faceReading || {};
-        if (Object.keys(faceReading).length > 0) {
-          drawSectionHeader("Face Reading (Five Officers)");
-          const faceMap = {
-            faceShape: "Face Shape",
-            forehead: "Forehead",
-            eyebrows: "Eyebrows",
-            eyes: "Eyes",
-            nose: "Nose",
-            mouth: "Mouth",
-            ears: "Ears",
-            cheekbones: "Cheekbones",
-            chin: "Chin",
-          };
-          for (const [key, label] of Object.entries(faceMap)) {
-            if (faceReading[key]) {
-              drawAnalysisItem(label, faceReading[key].feature, faceReading[key].meaning, faceReading[key].rating);
-            }
-          }
-        }
-
-        // --- Three Zones ---
-        const zones = data.threeZones;
-        if (zones) {
-          drawSectionHeader("Three Zones of Life");
-          const zoneConfig = [
-            { key: "upper", label: "Upper Zone (Age 1-30)" },
-            { key: "middle", label: "Middle Zone (Age 31-50)" },
-            { key: "lower", label: "Lower Zone (Age 51+)" },
-          ];
-          for (const { key, label } of zoneConfig) {
-            if (zones[key]) {
-              drawKeyValue(label, zones[key]);
-            }
-          }
-        }
-      }
-
-      // --- Palm Reading (palm mode) ---
-      if (lastAnalysisMode === "palm") {
-        const po = data.palmOverview;
-        if (po) {
-          drawSectionHeader("Palm Overview");
-          drawKeyValue("Hand Type", po.handType);
-          drawKeyValue("Dominant Element", po.dominantElement);
-          drawKeyValue("Skin Texture", po.skinTexture);
-          if (po.overallReading) drawParagraph(po.overallReading);
-        }
-
-        const majorLines = data.majorLines || {};
-        if (Object.keys(majorLines).length > 0) {
-          drawSectionHeader("Major Lines");
-          const majorMap = {
-            heartLine: "Heart Line",
-            headLine: "Head Line",
-            lifeLine: "Life Line",
-            fateLine: "Fate Line",
-          };
-          for (const [key, label] of Object.entries(majorMap)) {
-            if (majorLines[key]) {
-              drawAnalysisItem(label, majorLines[key].feature, majorLines[key].meaning, majorLines[key].rating);
-            }
-          }
-        }
-
-        const minorLines = data.minorLines || {};
-        if (Object.keys(minorLines).length > 0) {
-          drawSectionHeader("Minor Lines");
-          const minorMap = {
-            sunLine: "Sun Line",
-            mercuryLine: "Mercury Line",
-            marriageLine: "Marriage Line",
-            braceletLines: "Bracelet Lines",
-          };
-          for (const [key, label] of Object.entries(minorMap)) {
-            if (minorLines[key]) {
-              drawAnalysisItem(label, minorLines[key].feature, minorLines[key].meaning);
-            }
-          }
-        }
-
-        const mounts = data.mounts || {};
-        if (Object.keys(mounts).length > 0) {
-          drawSectionHeader("Mounts");
-          const mountMap = {
-            jupiter: "Jupiter Mount",
-            saturn: "Saturn Mount",
-            apollo: "Apollo Mount",
-            mercury: "Mercury Mount",
-            venus: "Venus Mount",
-            luna: "Luna Mount",
-            mars: "Mars Mount",
-          };
-          for (const [key, label] of Object.entries(mountMap)) {
-            if (mounts[key]) {
-              drawAnalysisItem(label, mounts[key].feature, mounts[key].meaning);
-            }
-          }
-        }
-
-        const fingers = data.fingers || {};
-        if (Object.keys(fingers).length > 0) {
-          drawSectionHeader("Fingers");
-          const fingerMap = {
-            thumb: "Thumb",
-            index: "Index (Jupiter)",
-            middle: "Middle (Saturn)",
-            ring: "Ring (Apollo)",
-            pinky: "Pinky (Mercury)",
-          };
-          for (const [key, label] of Object.entries(fingerMap)) {
-            if (fingers[key]) {
-              drawAnalysisItem(label, fingers[key].feature, fingers[key].meaning);
-            }
-          }
-        }
-      }
-
-      // --- Fortune ---
-      const fortune = data.fortuneTelling;
-      if (fortune) {
-        drawSectionHeader("Fortune & Lucky Items");
-        drawKeyValue("Lucky Color", fortune.luckyColor);
-        drawKeyValue("Lucky Number", fortune.luckyNumber);
-        drawKeyValue("Caution", fortune.caution);
-      }
-
-      // --- Numerology (face mode only) ---
-      if (lastAnalysisMode === "face" && data.numerology) {
-        const num = data.numerology;
-        drawSectionHeader("Numerology");
-        if (num.lifePathNumber) drawKeyValue("Life Path Number", num.lifePathNumber);
-        if (num.planetCheiro) drawKeyValue("Planet (Cheiro)", num.planetCheiro);
-        if (num.planetThai) drawKeyValue("Planet (Thai)", num.planetThai);
-        if (num.lifePathMeaning) drawParagraph(num.lifePathMeaning);
-        if (num.nameNumber && num.nameNumber.name) {
-          drawSubHeader("Name Number: " + num.nameNumber.name);
-          drawKeyValue("Compound", num.nameNumber.compoundNumber);
-          drawKeyValue("Single", num.nameNumber.singleNumber);
-          if (num.nameNumber.compoundMeaning) drawParagraph(num.nameNumber.compoundMeaning);
-          if (num.nameNumber.harmony) drawKeyValue("Harmony", num.nameNumber.harmony);
-          if (num.nameNumber.suggestion) drawKeyValue("Suggestion", num.nameNumber.suggestion);
-        }
-        if (num.friendlyNumbers) drawKeyValue("Friendly Numbers", num.friendlyNumbers);
-        if (num.enemyNumbers) drawKeyValue("Enemy Numbers", num.enemyNumbers);
-        if (num.luckyNumbers?.length) drawKeyValue("Lucky Numbers", num.luckyNumbers.join(", "));
-        if (num.unluckyNumbers?.length) drawKeyValue("Unlucky Numbers", num.unluckyNumbers.join(", "));
-        if (num.luckyColors?.length) drawKeyValue("Lucky Colors", num.luckyColors.join(", "));
-        if (num.elementMatch) drawKeyValue("Element Match", num.elementMatch);
-        if (num.advice) drawParagraph(num.advice);
-      }
-
-      // --- Strengths & Areas to Improve ---
-      if (data.strengths?.length || data.areasToImprove?.length) {
-        drawSectionHeader("Strengths & Areas to Improve");
-        if (data.strengths?.length) {
-          drawSubHeader("Strengths");
-          data.strengths.forEach((s) => drawBullet(s));
-        }
-        if (data.areasToImprove?.length) {
-          drawSubHeader("Areas to Improve");
-          data.areasToImprove.forEach((s) => drawBullet(s));
-        }
-      }
-
-      // --- Advice ---
-      const advice = data.advice || {};
-      if (Object.keys(advice).length > 0) {
-        drawSectionHeader("Advice");
-        const adviceMap = {
-          career: "Career",
-          relationships: "Relationships",
-          wealth: "Wealth",
-          selfDevelopment: "Self Development",
-          health: "Health",
-        };
-        for (const [key, label] of Object.entries(adviceMap)) {
-          if (advice[key]) {
-            drawKeyValue(label, advice[key]);
-          }
-        }
-      }
-
-      // --- Footer on every page ---
+      // Add page numbers now that we know the total
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setFillColor(10, 10, 26);
-        doc.rect(0, pageH - 12, pageW, 12, "F");
         doc.setFontSize(7);
         doc.setTextColor(100, 100, 140);
-        doc.text("BodyLang - AI Body Language & Face Reading Analyzer | Powered by Gemini AI", margin, pageH - 5);
-        doc.text(`Page ${i} / ${totalPages}`, pageW - margin - 20, pageH - 5);
+        doc.text(`Page ${i} / ${totalPages}`, pageW - margin - 20, pageH - 3.5);
       }
 
-      // --- Save ---
+      // Save
+      const now = new Date();
       const modeLabel = lastAnalysisMode === "palm" ? "Palm" : "FaceReading";
       const ts = now.toISOString().slice(0, 10);
       doc.save(`BodyLang_${modeLabel}_${ts}.pdf`);

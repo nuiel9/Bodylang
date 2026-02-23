@@ -2061,3 +2061,74 @@ footer p {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ===== PDF Print Mode (light theme for export) ===== */
+.pdf-print-mode,
+.pdf-print-mode * {
+  color: #1a1a2e !important;
+  border-color: #d0d0e0 !important;
+}
+
+.pdf-print-mode {
+  background: #ffffff !important;
+}
+
+.pdf-print-mode .result-card,
+.pdf-print-mode .analysis-card,
+.pdf-print-mode .section-card,
+.pdf-print-mode .palm-card,
+.pdf-print-mode .feature-card,
+.pdf-print-mode .numerology-card,
+.pdf-print-mode .chat-card,
+.pdf-print-mode .recommendation-card {
+  background: #f5f5fa !important;
+  border-color: #d0d0e0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+}
+
+.pdf-print-mode .section-header,
+.pdf-print-mode h3,
+.pdf-print-mode h4 {
+  color: #4a3aad !important;
+}
+
+.pdf-print-mode .tag,
+.pdf-print-mode .trait-tag,
+.pdf-print-mode .badge {
+  background: #ede8ff !important;
+  color: #4a3aad !important;
+  border-color: #c4b5fd !important;
+}
+
+.pdf-print-mode .text-muted,
+.pdf-print-mode .description,
+.pdf-print-mode p {
+  color: #3a3a5c !important;
+}
+
+.pdf-print-mode .rating-good,
+.pdf-print-mode .rating-excellent {
+  color: #16a34a !important;
+}
+
+.pdf-print-mode .rating-neutral {
+  color: #ca8a04 !important;
+}
+
+.pdf-print-mode .rating-bad,
+.pdf-print-mode .rating-caution {
+  color: #dc2626 !important;
+}
+
+.pdf-print-mode .line-card,
+.pdf-print-mode .detail-item,
+.pdf-print-mode .info-item {
+  background: #fafafe !important;
+  border-color: #e0e0f0 !important;
+}
+
+.pdf-print-mode .action-buttons,
+.pdf-print-mode .chat-section,
+.pdf-print-mode #exportPdfBtn {
+  display: none !important;
+}
