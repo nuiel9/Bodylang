@@ -74,10 +74,29 @@
         <!-- Upload Section -->
         <section class="upload-section" id="uploadSection">
             <div class="upload-card">
-                <h2>วิเคราะห์บุคลิกภาพจากภาษากายและโหงวเฮ้ง</h2>
-                <p class="upload-description">
+                <h2 id="uploadTitle">วิเคราะห์บุคลิกภาพจากภาษากายและโหงวเฮ้ง</h2>
+                <p class="upload-description" id="uploadDescription">
                     อัปโหลดรูปภาพ แล้ว AI จะวิเคราะห์ภาษากายและโหงวเฮ้ง ทำนายนิสัย บุคลิกภาพ พร้อมคำแนะนำ
                 </p>
+
+                <!-- Analysis Mode Selector -->
+                <div class="mode-selector" id="modeSelector">
+                    <button class="mode-btn active" data-mode="face">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                            <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                            <path d="M8 15c1.333 1.333 2.667 2 4 2s2.667-.667 4-2"/>
+                        </svg>
+                        <span>โหงวเฮ้ง & ภาษากาย</span>
+                    </button>
+                    <button class="mode-btn" data-mode="palm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <path d="M18 11V6a2 2 0 00-4 0v1M14 7V4a2 2 0 00-4 0v6M10 5V4a2 2 0 00-4 0v9c0 0-1.5-2-3-2.5 1 4 3.5 6.5 6 8.5h6c2.5-2 4-4 4-8V8a2 2 0 00-4 0v3"/>
+                        </svg>
+                        <span>ลายมือ & หัตถศาสตร์</span>
+                    </button>
+                </div>
 
                 <div class="upload-area" id="uploadArea">
                     <input type="file" id="fileInput" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
@@ -140,8 +159,8 @@
                     </div>
                 </div>
                 <h3>กำลังวิเคราะห์...</h3>
-                <p class="loading-text">AI กำลังอ่านภาษากายและโหงวเฮ้งของคุณ</p>
-                <div class="loading-steps">
+                <p class="loading-text" id="loadingText">AI กำลังอ่านภาษากายและโหงวเฮ้งของคุณ</p>
+                <div class="loading-steps" id="loadingSteps">
                     <div class="step active">
                         <div class="step-dot"></div>
                         <span>วิเคราะห์ท่าทาง</span>
@@ -185,8 +204,8 @@
                 <div class="traits-container" id="traitsContainer"></div>
             </div>
 
-            <!-- Body Language Analysis -->
-            <div class="result-card analysis-card">
+            <!-- Body Language Analysis (face mode) -->
+            <div class="result-card analysis-card face-mode-card">
                 <div class="card-header">
                     <div class="card-icon analysis-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -199,8 +218,8 @@
                 <div class="analysis-grid" id="analysisGrid"></div>
             </div>
 
-            <!-- Face Reading (โหงวเฮ้ง) -->
-            <div class="result-card face-reading-card">
+            <!-- Face Reading (face mode) -->
+            <div class="result-card face-reading-card face-mode-card">
                 <div class="card-header">
                     <div class="card-icon face-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -215,8 +234,8 @@
                 <div class="analysis-grid" id="faceReadingGrid"></div>
             </div>
 
-            <!-- Three Zones (三停) -->
-            <div class="result-card zones-card">
+            <!-- Three Zones (face mode) -->
+            <div class="result-card zones-card face-mode-card">
                 <div class="card-header">
                     <div class="card-icon zones-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -227,6 +246,79 @@
                     <h3>3 ช่วงชีวิตจากใบหน้า (三停)</h3>
                 </div>
                 <div id="threeZonesContent"></div>
+            </div>
+
+            <!-- Palm Overview (palm mode) -->
+            <div class="result-card palm-overview-card palm-mode-card" hidden>
+                <div class="card-header">
+                    <div class="card-icon palm-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 11V6a2 2 0 00-4 0v1M14 7V4a2 2 0 00-4 0v6M10 5V4a2 2 0 00-4 0v9c0 0-1.5-2-3-2.5 1 4 3.5 6.5 6 8.5h6c2.5-2 4-4 4-8V8a2 2 0 00-4 0v3"/>
+                        </svg>
+                    </div>
+                    <h3>ภาพรวมลายมือ</h3>
+                </div>
+                <div id="palmOverviewContent"></div>
+            </div>
+
+            <!-- Major Lines (palm mode) -->
+            <div class="result-card palm-lines-card palm-mode-card" hidden>
+                <div class="card-header">
+                    <div class="card-icon palm-lines-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 17c3-4 6-2 9-6s6-2 9-6"/>
+                            <path d="M3 12c4-2 8 1 12-1s5-3 6-4" opacity="0.6"/>
+                            <path d="M3 7c3 2 7 4 11 2s5-3 7-4" opacity="0.4"/>
+                        </svg>
+                    </div>
+                    <h3>เส้นลายมือหลัก</h3>
+                </div>
+                <div class="analysis-grid" id="majorLinesGrid"></div>
+            </div>
+
+            <!-- Minor Lines (palm mode) -->
+            <div class="result-card palm-minor-card palm-mode-card" hidden>
+                <div class="card-header">
+                    <div class="card-icon palm-minor-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 14c4-2 8 0 12-2s4-3 4-4" opacity="0.5"/>
+                            <path d="M4 18c3-1 7 1 10-1" opacity="0.4"/>
+                            <circle cx="12" cy="8" r="6" stroke-dasharray="3 2"/>
+                        </svg>
+                    </div>
+                    <h3>เส้นลายมือรอง & เครื่องหมายพิเศษ</h3>
+                </div>
+                <div class="analysis-grid" id="minorLinesGrid"></div>
+            </div>
+
+            <!-- Mounts (palm mode) -->
+            <div class="result-card palm-mounts-card palm-mode-card" hidden>
+                <div class="card-header">
+                    <div class="card-icon palm-mounts-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 18l4-6 4 4 4-8 4 10"/>
+                            <line x1="4" y1="18" x2="20" y2="18"/>
+                        </svg>
+                    </div>
+                    <h3>เนินมือ (Mounts)</h3>
+                </div>
+                <div class="analysis-grid" id="mountsGrid"></div>
+            </div>
+
+            <!-- Fingers (palm mode) -->
+            <div class="result-card palm-fingers-card palm-mode-card" hidden>
+                <div class="card-header">
+                    <div class="card-icon palm-fingers-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="4" y="8" width="3" height="12" rx="1.5"/>
+                            <rect x="8.5" y="4" width="3" height="16" rx="1.5"/>
+                            <rect x="13" y="3" width="3" height="17" rx="1.5"/>
+                            <rect x="17.5" y="6" width="3" height="14" rx="1.5"/>
+                        </svg>
+                    </div>
+                    <h3>ลักษณะนิ้วมือ</h3>
+                </div>
+                <div class="analysis-grid" id="fingersGrid"></div>
             </div>
 
             <!-- Fortune Telling -->

@@ -486,6 +486,146 @@ Master Numbers: 11, 22, 33 ไม่ต้องลดลง (เป็นเล
 ถ้ามีชื่อ ต้องคำนวณเลขชื่อ (Name Number) ตามระบบ Chaldean ให้ถูกต้องทุกตัวอักษร พร้อม Compound Number และความหมาย
 ถ้าไม่มีชื่อ ให้ nameNumber เป็น null`;
 
+const PALM_SYSTEM_PROMPT = `คุณเป็นผู้เชี่ยวชาญระดับปรมาจารย์ด้านหัตถศาสตร์ (Palmistry / Chiromancy) และการอ่านลายมือ มีความรู้ลึกซึ้งจากทั้งตำราตะวันตก (Cheiro, William Benham) และตะวันออก (หัตถศาสตร์จีน/อินเดีย)
+
+## หลักการหัตถศาสตร์ที่ต้องใช้ในการวิเคราะห์:
+
+### เส้นลายมือหลัก (Major Lines):
+
+1. **เส้นหัวใจ (Heart Line / 感情線)**:
+   เริ่มจากใต้นิ้วก้อยไปทางนิ้วชี้
+   - ยาวถึงใต้นิ้วชี้: โรแมนติก เลือกคู่ครองอย่างดี
+   - สั้นถึงนิ้วกลาง: เห็นแก่ตัวในความรัก
+   - ตรง: ควบคุมอารมณ์ มีเหตุผลในความรัก
+   - โค้ง: แสดงอารมณ์ เปิดเผย รักอิสระ
+   - แตกแขนง: มีประสบการณ์ความรักหลากหลาย
+   - ขาดตอน: ความผิดหวังในความรัก ช่วงชีวิตที่ยากลำบาก
+   - ลึกชัด: ความรักเข้มข้น จริงจัง
+   - จาง/บาง: อ่อนไหว ไม่ค่อยเปิดเผยอารมณ์
+
+2. **เส้นสมอง (Head Line / 智慧線)**:
+   เริ่มจากระหว่างนิ้วหัวแม่มือกับนิ้วชี้ไปทางฝั่งตรงข้าม
+   - ยาว: คิดลึก วิเคราะห์ดี
+   - สั้น: ตัดสินใจเร็ว ชอบปฏิบัติมากกว่าคิด
+   - ตรง: คิดอย่างมีเหตุผล ชัดเจน
+   - โค้งลง: จินตนาการสูง ศิลปะ สร้างสรรค์
+   - แยกปลาย (fork): มองเห็นทั้งสองด้าน สมดุลเหตุผล+จินตนาการ
+   - ลึกชัด: สมาธิดี สติปัญญาเฉียบแหลม
+   - เส้นคู่: พรสวรรค์พิเศษ ความสามารถหลายด้าน
+
+3. **เส้นชีวิต (Life Line / 生命線)**:
+   โค้งรอบโคนนิ้วหัวแม่มือ
+   - ยาวลึกชัด: สุขภาพดี พลังชีวิตสูง
+   - สั้น: ไม่ได้หมายถึงอายุสั้น แต่อาจขาดพลัง
+   - กว้างโค้ง: พลังงานสูง กระตือรือร้น
+   - แคบชิดหัวแม่มือ: เหนื่อยง่าย ระมัดระวัง
+   - ขาดตอน: เปลี่ยนแปลงครั้งใหญ่ในชีวิต
+   - เส้นคู่: มีพลังพิเศษ/ผู้คุ้มครอง
+   - แตกแขนงขึ้น: ความสำเร็จ โอกาสดี
+   - แตกแขนงลง: สูญเสีย ช่วงที่พลังตก
+
+4. **เส้นโชคชะตา (Fate Line / 事業線)**:
+   จากฐานฝ่ามือขึ้นสู่นิ้วกลาง
+   - ลึกชัดยาว: ชีวิตมีทิศทาง ประสบความสำเร็จ
+   - ไม่มี: ชีวิตอิสระ ไม่ชอบถูกกำหนด
+   - เริ่มจากเส้นชีวิต: สำเร็จด้วยตัวเอง ขยัน
+   - เริ่มจากกลางฝ่ามือ: เริ่มต้นช้าแต่มั่นคง
+   - แตกแขนง: หลายอาชีพ หลายเส้นทาง
+
+### เส้นลายมือรอง (Minor Lines):
+
+5. **เส้นดวงอาทิตย์ (Sun/Apollo Line)**: ชื่อเสียง ความสำเร็จ ศิลปะ
+6. **เส้นพุธ (Mercury/Health Line)**: สุขภาพ การสื่อสาร ธุรกิจ
+7. **เส้นแต่งงาน (Marriage/Affection Lines)**: ใต้นิ้วก้อย — จำนวนและความชัดบอกความสัมพันธ์สำคัญ
+8. **เส้นข้อมือ (Bracelet/Rascette Lines)**: อายุยืน สุขภาพ โชค — 3 เส้นชัด = มงคล
+9. **เส้นสัญชาตญาณ (Intuition Line)**: พลังจิต สัมผัสที่หก
+10. **วงแหวนโซโลมอน (Ring of Solomon)**: ภูมิปัญญา ผู้นำ
+
+### เนินมือ (Mounts):
+- **เนินพฤหัสบดี (Jupiter)** ใต้นิ้วชี้: ความทะเยอทะยาน ผู้นำ
+- **เนินเสาร์ (Saturn)** ใต้นิ้วกลาง: ความรับผิดชอบ วินัย
+- **เนินอพอลโล (Apollo/Sun)** ใต้นิ้วนาง: ศิลปะ ชื่อเสียง ความสุข
+- **เนินพุธ (Mercury)** ใต้นิ้วก้อย: การสื่อสาร ธุรกิจ การเงิน
+- **เนินศุกร์ (Venus)** โคนหัวแม่มือ: ความรัก เสน่ห์ พลังชีวิต
+- **เนินจันทร์ (Luna/Moon)** ฝั่งตรงข้ามหัวแม่มือ: จินตนาการ สัมผัสที่หก
+- **เนินอังคาร (Mars)** กลางฝ่ามือ: ความกล้า พลัง การต่อสู้
+   - นูนเด่น = คุณสมบัตินั้นแข็งแกร่ง | แบน = อ่อน | ใหญ่เกินไป = มากเกินไป
+
+### ลักษณะนิ้วมือ:
+- **หัวแม่มือ**: ความตั้งใจ ตรรกะ — ใหญ่=เจ้าอำนาจ กว้าง=ดื้อ ยืดหยุ่น=ปรับตัวเก่ง
+- **นิ้วชี้ (Jupiter)**: ความทะเยอทะยาน — ยาว=ผู้นำ สั้น=ขาดความมั่นใจ
+- **นิ้วกลาง (Saturn)**: ความรับผิดชอบ — ยาว=จริงจัง สั้น=เป็นกันเอง
+- **นิ้วนาง (Apollo)**: ความคิดสร้างสรรค์ — ยาว=ศิลปิน สั้น=ไม่ค่อยเสี่ยง
+- **นิ้วก้อย (Mercury)**: การสื่อสาร — ยาว=พูดเก่ง สั้น=เขินอาย
+- **ปลายนิ้ว**: แหลม=สัมผัส สี่เหลี่ยม=จัดระเบียบ กลม=ปรับตัว ตักร=ปฏิบัติ
+
+### รูปทรงมือ (Hand Shape) ตามธาตุ:
+- **มือไฟ (Fire)**: ฝ่ามือยาว นิ้วสั้น — กระตือรือร้น เป็นผู้นำ ใจร้อน
+- **มือดิน (Earth)**: ฝ่ามือสี่เหลี่ยม นิ้วสั้น — ปฏิบัติจริง มั่นคง ขยัน
+- **มือลม (Air)**: ฝ่ามือสี่เหลี่ยม นิ้วยาว — ฉลาด ช่างคิด สื่อสารเก่ง
+- **มือน้ำ (Water)**: ฝ่ามือยาวแคบ นิ้วยาว — อ่อนไหว ศิลปะ จินตนาการสูง
+
+## ตอบกลับเป็น JSON:
+{
+  "palmOverview": {
+    "handType": "รูปทรงมือ + ธาตุ",
+    "dominantElement": "ธาตุหลัก",
+    "skinTexture": "ลักษณะผิวมือ",
+    "overallReading": "สรุปภาพรวมลายมือ"
+  },
+  "majorLines": {
+    "heartLine": { "feature": "ลักษณะเส้นหัวใจ", "meaning": "ความหมาย", "rating": "good/neutral/bad" },
+    "headLine": { "feature": "ลักษณะเส้นสมอง", "meaning": "ความหมาย", "rating": "good/neutral/bad" },
+    "lifeLine": { "feature": "ลักษณะเส้นชีวิต", "meaning": "ความหมาย", "rating": "good/neutral/bad" },
+    "fateLine": { "feature": "ลักษณะเส้นโชคชะตา", "meaning": "ความหมาย", "rating": "good/neutral/bad" }
+  },
+  "minorLines": {
+    "sunLine": { "feature": "...", "meaning": "..." },
+    "mercuryLine": { "feature": "...", "meaning": "..." },
+    "marriageLine": { "feature": "...", "meaning": "..." },
+    "braceletLines": { "feature": "...", "meaning": "..." }
+  },
+  "mounts": {
+    "jupiter": { "feature": "...", "meaning": "..." },
+    "saturn": { "feature": "...", "meaning": "..." },
+    "apollo": { "feature": "...", "meaning": "..." },
+    "mercury": { "feature": "...", "meaning": "..." },
+    "venus": { "feature": "...", "meaning": "..." },
+    "luna": { "feature": "...", "meaning": "..." },
+    "mars": { "feature": "...", "meaning": "..." }
+  },
+  "fingers": {
+    "thumb": { "feature": "...", "meaning": "..." },
+    "index": { "feature": "...", "meaning": "..." },
+    "middle": { "feature": "...", "meaning": "..." },
+    "ring": { "feature": "...", "meaning": "..." },
+    "pinky": { "feature": "...", "meaning": "..." }
+  },
+  "personalityPrediction": {
+    "overallType": "...",
+    "element": "ธาตุประจำตัว",
+    "traits": ["...", "..."],
+    "detailedDescription": "..."
+  },
+  "strengths": ["...", "..."],
+  "areasToImprove": ["...", "..."],
+  "advice": {
+    "career": "...",
+    "relationships": "...",
+    "wealth": "...",
+    "health": "..."
+  },
+  "fortuneTelling": {
+    "luckyColor": "สีมงคล",
+    "luckyNumber": "เลขมงคล",
+    "caution": "สิ่งที่ควรระวัง"
+  },
+  "overallSummary": "..."
+}
+
+หมายเหตุ: ตอบภาษาไทย กระชับ ได้ใจความ อ้างอิงหลักหัตถศาสตร์ในทุกการวิเคราะห์ ตอบเป็น JSON เท่านั้น
+ถ้าเส้นใดมองไม่เห็นหรือไม่ชัดเจน ให้ระบุว่า "ไม่สามารถอ่านได้ชัด" พร้อมบอกความหมายของการที่เส้นนั้นจางหรือไม่มี`;
+
 // Analysis context is now stored per-session (req.session.analysisContext)
 
 // Helper: extract JSON from text
@@ -674,6 +814,52 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
   } catch (error) {
     console.error("Analysis error:", error.message);
     console.error("Full error:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2).substring(0, 500));
+    res.status(500).json({
+      error: error.message || "เกิดข้อผิดพลาดในการวิเคราะห์ กรุณาลองใหม่อีกครั้ง",
+      details: error.message,
+    });
+  }
+});
+
+// API endpoint to analyze palm reading
+app.post("/api/analyze-palm", upload.single("image"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "กรุณาอัปโหลดรูปภาพฝ่ามือ" });
+  }
+
+  try {
+    const { buffer: imageBuffer, mediaType } = await compressImage(req.file.buffer, req.file.mimetype);
+    const base64Image = imageBuffer.toString("base64");
+
+    const userPrompt = "วิเคราะห์ลายมือในรูปภาพนี้อย่างละเอียดตามหลักหัตถศาสตร์ อ่านเส้นลายมือหลัก เส้นรอง เนินมือ ลักษณะนิ้วมือ รูปทรงมือ ทำนายนิสัย บุคลิกภาพ โชคชะตา พร้อมคำแนะนำ";
+
+    const response = await model.generateContent([
+      { text: PALM_SYSTEM_PROMPT },
+      {
+        inlineData: {
+          mimeType: mediaType,
+          data: base64Image,
+        },
+      },
+      { text: userPrompt },
+    ]);
+
+    const text = response.response.text();
+    console.log("Palm raw response length:", text.length);
+    const result = extractJSON(text);
+
+    console.log("Palm analysis keys:", Object.keys(result));
+
+    // Store context in session for follow-up chat (per-user)
+    req.session.analysisContext = {
+      result,
+      imageBase64: base64Image,
+      mediaType,
+    };
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("Palm analysis error:", error.message);
     res.status(500).json({
       error: error.message || "เกิดข้อผิดพลาดในการวิเคราะห์ กรุณาลองใหม่อีกครั้ง",
       details: error.message,

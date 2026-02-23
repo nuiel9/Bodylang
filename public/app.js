@@ -32,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const historyBadge = document.getElementById("historyBadge");
 
   let selectedFile = null;
+  let analysisMode = "face"; // "face" or "palm"
   const HISTORY_KEY = "bodylang_history";
   const MAX_HISTORY = 20;
 
@@ -73,13 +74,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  async function addHistoryEntry(data, imageSrc) {
+  async function addHistoryEntry(data, imageSrc, mode) {
     const entries = getHistory();
     const thumbnail = await createThumbnail(imageSrc, 120);
     const resultImage = await createThumbnail(imageSrc, 480);
     const entry = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       timestamp: new Date().toISOString(),
+      mode: mode || "face",
       name: document.getElementById("nameInput").value.trim() || null,
       birthday: document.getElementById("birthdayInput").value || null,
       personalityType: data.personalityPrediction?.overallType || "",
@@ -139,6 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="history-item-info">
           <div class="history-item-type">${entry.personalityType || "ไม่ระบุ"}</div>
           <div class="history-item-meta">
+            <span class="history-mode-tag ${entry.mode === "palm" ? "mode-palm" : "mode-face"}">${entry.mode === "palm" ? "ลายมือ" : "โหงวเฮ้ง"}</span>
             ${entry.element ? '<span class="history-element">' + entry.element + "</span>" : ""}
             ${entry.name ? '<span class="history-name">' + entry.name + "</span>" : ""}
           </div>
@@ -168,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     closeHistoryPanel();
     // Set the result image from stored data
     document.getElementById("resultImage").src = entry.resultImage || entry.thumbnail || "";
-    renderResults(entry.data, true);
+    renderResults(entry.data, true, entry.mode || "face");
     showSection(resultsSection);
   }
 
@@ -202,6 +205,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize badge on load
   updateHistoryBadge();
+
+  // --- Mode Selector ---
+  const modeBtns = document.querySelectorAll(".mode-btn");
+  modeBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      modeBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      analysisMode = btn.dataset.mode;
+      const title = document.getElementById("uploadTitle");
+      const desc = document.getElementById("uploadDescription");
+      const nameGroup = document.getElementById("nameInput").closest(".birthday-input-group");
+      const birthdayGroup = document.getElementById("birthdayInput").closest(".birthday-input-group");
+      if (analysisMode === "palm") {
+        title.textContent = "วิเคราะห์ลายมือและหัตถศาสตร์";
+        desc.textContent = "อัปโหลดรูปฝ่ามือ แล้ว AI จะอ่านเส้นลายมือ เนินมือ ลักษณะนิ้ว ทำนายนิสัย บุคลิกภาพ โชคชะตา";
+        analyzeBtn.querySelector(".btn-text").textContent = "วิเคราะห์ลายมือ & หัตถศาสตร์";
+        nameGroup.hidden = true;
+        birthdayGroup.hidden = true;
+      } else {
+        title.textContent = "วิเคราะห์บุคลิกภาพจากภาษากายและโหงวเฮ้ง";
+        desc.textContent = "อัปโหลดรูปภาพ แล้ว AI จะวิเคราะห์ภาษากายและโหงวเฮ้ง ทำนายนิสัย บุคลิกภาพ พร้อมคำแนะนำ";
+        analyzeBtn.querySelector(".btn-text").textContent = "วิเคราะห์ภาษากาย & โหงวเฮ้ง & เลขศาสตร์";
+        nameGroup.hidden = false;
+        birthdayGroup.hidden = false;
+      }
+    });
+  });
 
   // --- Upload Area Events ---
   uploadArea.addEventListener("click", (e) => {
@@ -323,9 +353,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Analyze Image ---
+  function updateLoadingSteps(mode) {
+    const loadingText = document.getElementById("loadingText");
+    const loadingSteps = document.getElementById("loadingSteps");
+    if (mode === "palm") {
+      loadingText.textContent = "AI กำลังอ่านลายมือและวิเคราะห์หัตถศาสตร์ของคุณ";
+      loadingSteps.innerHTML = `
+        <div class="step active"><div class="step-dot"></div><span>อ่านเส้นลายมือ</span></div>
+        <div class="step"><div class="step-dot"></div><span>วิเคราะห์เนินมือ</span></div>
+        <div class="step"><div class="step-dot"></div><span>ทำนายบุคลิก</span></div>
+        <div class="step"><div class="step-dot"></div><span>สร้างคำแนะนำ</span></div>
+      `;
+    } else {
+      loadingText.textContent = "AI กำลังอ่านภาษากายและโหงวเฮ้งของคุณ";
+      loadingSteps.innerHTML = `
+        <div class="step active"><div class="step-dot"></div><span>วิเคราะห์ท่าทาง</span></div>
+        <div class="step"><div class="step-dot"></div><span>อ่านโหงวเฮ้ง</span></div>
+        <div class="step"><div class="step-dot"></div><span>ทำนายบุคลิก</span></div>
+        <div class="step"><div class="step-dot"></div><span>สร้างคำแนะนำ</span></div>
+      `;
+    }
+  }
+
   async function analyzeImage() {
     if (!selectedFile) return;
 
+    updateLoadingSteps(analysisMode);
     showSection(loadingSection);
 
     document.querySelectorAll(".loading-steps .step").forEach((s) => {
@@ -336,16 +389,18 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const formData = new FormData();
       formData.append("image", selectedFile);
-      const birthdayVal = document.getElementById("birthdayInput").value;
-      if (birthdayVal) {
-        formData.append("birthday", birthdayVal);
-      }
-      const nameVal = document.getElementById("nameInput").value.trim();
-      if (nameVal) {
-        formData.append("name", nameVal);
+
+      let endpoint = "/api/analyze";
+      if (analysisMode === "palm") {
+        endpoint = "/api/analyze-palm";
+      } else {
+        const birthdayVal = document.getElementById("birthdayInput").value;
+        if (birthdayVal) formData.append("birthday", birthdayVal);
+        const nameVal = document.getElementById("nameInput").value.trim();
+        if (nameVal) formData.append("name", nameVal);
       }
 
-      const response = await fetch("/api/analyze", {
+      const response = await fetch(endpoint, {
         method: "POST",
         body: formData,
       });
@@ -360,10 +415,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
 
       if (result.success) {
-        renderResults(result.data, false);
+        renderResults(result.data, false, analysisMode);
         showSection(resultsSection);
         // Save to history
-        addHistoryEntry(result.data, previewImage.src);
+        addHistoryEntry(result.data, previewImage.src, analysisMode);
       } else {
         throw new Error(result.error || "ไม่สามารถวิเคราะห์ได้");
       }
@@ -474,11 +529,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Render Results ---
-  function renderResults(data, isFromHistory) {
+  function renderResults(data, isFromHistory, mode) {
+    mode = mode || "face";
+
     // Show uploaded image (for fresh analysis; history sets it before calling)
     if (!isFromHistory) {
       document.getElementById("resultImage").src = previewImage.src;
     }
+
+    // Toggle face-mode vs palm-mode cards
+    document.querySelectorAll(".face-mode-card").forEach((el) => { el.hidden = mode === "palm"; });
+    document.querySelectorAll(".palm-mode-card").forEach((el) => { el.hidden = mode !== "palm"; });
 
     // Personality type & summary
     document.getElementById("personalityType").textContent =
@@ -668,12 +729,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Numerology (เลขศาสตร์)
+    // Numerology (เลขศาสตร์) — only for face mode
     const numerologyCard = document.getElementById("numerologyCard");
     const numerologyContent = document.getElementById("numerologyContent");
     if (numerologyContent) {
       numerologyContent.innerHTML = "";
-      const num = data.numerology;
+      const num = mode === "face" ? data.numerology : null;
       if (num) {
         numerologyCard.hidden = false;
 
@@ -794,6 +855,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    // --- Palm Reading Results ---
+    if (mode === "palm") {
+      renderPalmResults(data);
+    }
+
     // Reset chat and recommendations
     chatMessages.innerHTML = "";
     recommendCard.hidden = true;
@@ -808,6 +874,149 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       recommendBtn.querySelector(".btn-text").textContent = "ดูคำแนะนำเพิ่มเติม (โชคลาภ, สีมงคล, ความรัก...)";
       if (chatCard) chatCard.hidden = false;
+    }
+  }
+
+  // --- Palm Results Rendering ---
+  function renderPalmResults(data) {
+    const ratingConfig = {
+      good: { label: "ดี", icon: "&#9650;", className: "rating-good" },
+      neutral: { label: "ปานกลาง", icon: "&#9644;", className: "rating-neutral" },
+      bad: { label: "ควรระวัง", icon: "&#9660;", className: "rating-bad" },
+    };
+
+    // Palm Overview
+    const overviewEl = document.getElementById("palmOverviewContent");
+    if (overviewEl) {
+      overviewEl.innerHTML = "";
+      const po = data.palmOverview;
+      if (po) {
+        const items = [
+          { label: "รูปทรงมือ", value: po.handType, icon: "&#9995;" },
+          { label: "ธาตุหลัก", value: po.dominantElement, icon: "&#9775;" },
+          { label: "ลักษณะผิว", value: po.skinTexture, icon: "&#128400;" },
+        ];
+        items.forEach(({ label, value, icon }) => {
+          if (value) {
+            const item = document.createElement("div");
+            item.className = "fortune-item";
+            item.innerHTML = `<span class="fortune-icon">${icon}</span><strong>${label}:</strong> ${value}`;
+            overviewEl.appendChild(item);
+          }
+        });
+        if (po.overallReading) {
+          const summary = document.createElement("div");
+          summary.className = "palm-overview-text";
+          summary.textContent = po.overallReading;
+          overviewEl.appendChild(summary);
+        }
+      }
+    }
+
+    // Major Lines
+    const majorGrid = document.getElementById("majorLinesGrid");
+    if (majorGrid) {
+      majorGrid.innerHTML = "";
+      const majorMap = {
+        heartLine: "เส้นหัวใจ (Heart Line)",
+        headLine: "เส้นสมอง (Head Line)",
+        lifeLine: "เส้นชีวิต (Life Line)",
+        fateLine: "เส้นโชคชะตา (Fate Line)",
+      };
+      const majorLines = data.majorLines || {};
+      for (const [key, label] of Object.entries(majorMap)) {
+        if (majorLines[key]) {
+          const rating = majorLines[key].rating || "neutral";
+          const rc = ratingConfig[rating] || ratingConfig.neutral;
+          const item = document.createElement("div");
+          item.className = `analysis-item face-${rating}`;
+          item.innerHTML = `
+            <div class="analysis-label">${label}<span class="face-rating ${rc.className}">${rc.icon} ${rc.label}</span></div>
+            <div class="analysis-observation">${majorLines[key].feature || ""}</div>
+            <div class="analysis-meaning">${majorLines[key].meaning || ""}</div>
+          `;
+          majorGrid.appendChild(item);
+        }
+      }
+    }
+
+    // Minor Lines
+    const minorGrid = document.getElementById("minorLinesGrid");
+    if (minorGrid) {
+      minorGrid.innerHTML = "";
+      const minorMap = {
+        sunLine: "เส้นดวงอาทิตย์ (Sun Line)",
+        mercuryLine: "เส้นพุธ (Mercury Line)",
+        marriageLine: "เส้นแต่งงาน (Marriage Line)",
+        braceletLines: "เส้นข้อมือ (Bracelet Lines)",
+      };
+      const minorLines = data.minorLines || {};
+      for (const [key, label] of Object.entries(minorMap)) {
+        if (minorLines[key]) {
+          const item = document.createElement("div");
+          item.className = "analysis-item";
+          item.innerHTML = `
+            <div class="analysis-label">${label}</div>
+            <div class="analysis-observation">${minorLines[key].feature || ""}</div>
+            <div class="analysis-meaning">${minorLines[key].meaning || ""}</div>
+          `;
+          minorGrid.appendChild(item);
+        }
+      }
+    }
+
+    // Mounts
+    const mountsGrid = document.getElementById("mountsGrid");
+    if (mountsGrid) {
+      mountsGrid.innerHTML = "";
+      const mountMap = {
+        jupiter: "เนินพฤหัสบดี (Jupiter)",
+        saturn: "เนินเสาร์ (Saturn)",
+        apollo: "เนินอพอลโล (Apollo)",
+        mercury: "เนินพุธ (Mercury)",
+        venus: "เนินศุกร์ (Venus)",
+        luna: "เนินจันทร์ (Luna)",
+        mars: "เนินอังคาร (Mars)",
+      };
+      const mounts = data.mounts || {};
+      for (const [key, label] of Object.entries(mountMap)) {
+        if (mounts[key]) {
+          const item = document.createElement("div");
+          item.className = "analysis-item";
+          item.innerHTML = `
+            <div class="analysis-label">${label}</div>
+            <div class="analysis-observation">${mounts[key].feature || ""}</div>
+            <div class="analysis-meaning">${mounts[key].meaning || ""}</div>
+          `;
+          mountsGrid.appendChild(item);
+        }
+      }
+    }
+
+    // Fingers
+    const fingersGrid = document.getElementById("fingersGrid");
+    if (fingersGrid) {
+      fingersGrid.innerHTML = "";
+      const fingerMap = {
+        thumb: "หัวแม่มือ (Thumb)",
+        index: "นิ้วชี้ (Jupiter)",
+        middle: "นิ้วกลาง (Saturn)",
+        ring: "นิ้วนาง (Apollo)",
+        pinky: "นิ้วก้อย (Mercury)",
+      };
+      const fingers = data.fingers || {};
+      for (const [key, label] of Object.entries(fingerMap)) {
+        if (fingers[key]) {
+          const item = document.createElement("div");
+          item.className = "analysis-item";
+          item.innerHTML = `
+            <div class="analysis-label">${label}</div>
+            <div class="analysis-observation">${fingers[key].feature || ""}</div>
+            <div class="analysis-meaning">${fingers[key].meaning || ""}</div>
+          `;
+          fingersGrid.appendChild(item);
+        }
+      }
     }
   }
 });
