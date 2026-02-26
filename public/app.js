@@ -1085,23 +1085,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const resultSection = document.getElementById("resultsSection");
       if (!resultSection) throw new Error("Result section not found");
 
-      // Apply print-friendly light theme before capturing
-      resultSection.classList.add("pdf-print-mode");
-      // Wait for styles to apply
-      await new Promise(r => setTimeout(r, 100));
-
-      // Use html2canvas to capture the entire results section as a canvas image.
-      // This preserves Thai text, styling, and correct image aspect ratios.
+      // Capture dark theme as-is (dark background + white text = readable PDF)
       const canvas = await html2canvas(resultSection, {
         scale: 3,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: "#ffffff",
+        backgroundColor: "#0a0a1a",
         scrollY: -window.scrollY,
       });
-
-      // Restore dark theme immediately after capture
-      resultSection.classList.remove("pdf-print-mode");
 
       const canvasImgData = canvas.toDataURL("image/jpeg", 0.92);
 
@@ -1119,19 +1110,31 @@ document.addEventListener("DOMContentLoaded", () => {
       const imgW = contentW;
       const totalImgH = imgW * imgRatio;
 
-      // Split the captured image across multiple pages if needed
+      // Helper: check if a canvas slice is mostly blank (white/near-white)
+      function isSliceBlank(sliceCanvas, threshold) {
+        const ctx = sliceCanvas.getContext("2d");
+        const data = ctx.getImageData(0, 0, sliceCanvas.width, sliceCanvas.height).data;
+        const sampleStep = Math.max(1, Math.floor(data.length / (4 * 2000))); // sample ~2000 pixels
+        let nonWhiteCount = 0;
+        let sampledCount = 0;
+        for (let i = 0; i < data.length; i += 4 * sampleStep) {
+          sampledCount++;
+          if (data[i] < 240 || data[i+1] < 240 || data[i+2] < 240) {
+            nonWhiteCount++;
+          }
+        }
+        return (nonWhiteCount / sampledCount) < (threshold || 0.01);
+      }
+
+      // Split the captured image across multiple pages, skipping blank pages
       let srcY = 0;
       const srcWidth = canvas.width;
       const srcTotalHeight = canvas.height;
       let pageNum = 0;
+      const sliceHmm = usableH;
+      const sliceHpx = (sliceHmm / totalImgH) * srcTotalHeight;
 
       while (srcY < srcTotalHeight) {
-        if (pageNum > 0) doc.addPage();
-        pageNum++;
-
-        // How much of the source image height fits on one page
-        const sliceHmm = usableH - (pageNum === 1 ? 0 : 0);
-        const sliceHpx = (sliceHmm / totalImgH) * srcTotalHeight;
         const actualSliceHpx = Math.min(sliceHpx, srcTotalHeight - srcY);
         const actualSliceHmm = (actualSliceHpx / srcTotalHeight) * totalImgH;
 
@@ -1146,15 +1149,21 @@ document.addEventListener("DOMContentLoaded", () => {
           0, 0, srcWidth, Math.ceil(actualSliceHpx)
         );
 
-        const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.92);
-        doc.addImage(sliceData, "JPEG", margin, margin, imgW, actualSliceHmm);
+        // Skip blank pages
+        if (!isSliceBlank(sliceCanvas, 0.01)) {
+          if (pageNum > 0) doc.addPage();
+          pageNum++;
 
-        // Draw footer
-        doc.setFillColor(245, 245, 250);
-        doc.rect(0, pageH - footerH, pageW, footerH, "F");
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 120);
-        doc.text("BodyLang - AI Body Language & Face Reading Analyzer | Powered by Gemini AI", margin, pageH - 3.5);
+          const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.92);
+          doc.addImage(sliceData, "JPEG", margin, margin, imgW, actualSliceHmm);
+
+          // Draw footer
+          doc.setFillColor(10, 10, 26);
+          doc.rect(0, pageH - footerH, pageW, footerH, "F");
+          doc.setFontSize(7);
+          doc.setTextColor(155, 155, 190);
+          doc.text("BodyLang - AI Body Language & Face Reading Analyzer | Powered by Gemini AI", margin, pageH - 3.5);
+        }
 
         srcY += actualSliceHpx;
       }
